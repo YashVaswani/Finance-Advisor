@@ -5,5 +5,3 @@ altair
 fddf
 matplotlib
 plotly
-
-
