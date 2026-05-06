@@ -122,6 +122,41 @@ label[data-testid="stWidgetLabel"] {
 /* === ALERTS === */
 .stAlert { border-radius: 12px !important; backdrop-filter: blur(10px); }
 
+/* === DOWNLOAD BUTTON === */
+.stDownloadButton > button {
+    background: linear-gradient(135deg, #7c3aed, #6d28d9) !important;
+    color: #fff !important; border: none !important;
+    border-radius: 12px !important; padding: 0.6rem 1.5rem !important;
+    font-weight: 600 !important; font-family: 'Inter', sans-serif !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 15px rgba(124,58,237,0.3) !important;
+}
+.stDownloadButton > button:hover {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 25px rgba(139,92,246,0.45) !important;
+}
+
+/* === ALTAIR CHART TEXT (legends, labels, titles) === */
+#vg-tooltip-element table { color: #1e1b4b !important; }
+
+/* === PROGRESS BAR === */
+.stProgress > div > div > div {
+    background: linear-gradient(90deg, #7c3aed, #a78bfa) !important;
+    border-radius: 8px !important;
+}
+
+/* === TABLE TEXT === */
+.stTable, .stTable td, .stTable th,
+[data-testid="stTable"] { color: #e2e8f0 !important; }
+
+/* === TEXT AREA === */
+.stTextArea textarea {
+    background: rgba(255,255,255,0.05) !important;
+    border: 1px solid rgba(139,92,246,0.2) !important;
+    border-radius: 10px !important; color: #e2e8f0 !important;
+}
+
 /* === CUSTOM GLASS CARD === */
 .glass-card {
     background: rgba(255,255,255,0.04);
@@ -509,7 +544,7 @@ with tab3:
     ).encode(
         theta=alt.Theta(field="Allocation %", type="quantitative"),
         color=alt.Color(field="Asset Class", type="nominal",
-            scale=alt.Scale(range=["#8b5cf6", "#6366f1", "#a78bfa", "#c4b5fd"])
+            scale=alt.Scale(range=["#22d3ee", "#a78bfa", "#facc15", "#fb7185"])
         ),
         tooltip=["Asset Class", "Allocation %"]
     ).properties(title="Portfolio Allocation", height=380)
