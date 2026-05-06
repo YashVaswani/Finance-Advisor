@@ -1,211 +1,285 @@
-# By Yash Vaswani (Project-AI Finance Advisor)
-
-#TO VISIT DASHBOARD RUN - streamlit run .py
-#demo user name=admin,,password=123#
-
-import os
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
+# --- 1. IMPORTS (ALL AT THE TOP) ---
 import streamlit as st
 import pandas as pd
+import numpy as np
+import altair as alt
+from fpdf import FPDF
+from io import BytesIO
+import os
+from datetime import datetime
 
-# User authentication
-users = {"admin": "123#", "user": "123*"}
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-if not st.session_state.authenticated:
-    st.title("🔐 Login")
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-    if st.button("Login"):
-        if username in users and users[username] == password:
-            st.session_state.authenticated = True
-            st.rerun()
-        else:
-            st.error("Invalid username or password( Demo user=admin,123*=123#)")
-    st.stop()
-
-# Properly call set_page_config with parentheses and arguments:
+# --- 2. PAGE CONFIG (MUST BE THE FIRST STREAMLIT COMMAND) ---
 st.set_page_config(
-    page_title="AI Finance Advisor",
-    page_icon="📒",
+    page_title="AI Personal Finance Advisor",
+    page_icon="📒",  # Added page_icon back
     layout="wide",
     initial_sidebar_state="expanded"
 )
-st.markdown(
-    """
-    <style>
-    html, body, [class*="css"] {
-        background-color: #f4f4f4 !important;
-        color: #2e2e2e !important;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
 
-    /* Buttons */
-    .stButton > button {
-        background-color: #5a5a5a !important;
-        color: white !important;
-        border: none;
-        border-radius: 5px;
-        padding: 0.5rem 1rem;
-    }
+# --- 3. GLOBAL STYLING (injected before login so login page is also styled) ---
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-    .stButton > button:hover {
-        background-color: #3f3f3f !important;
-        color: #ffffff !important;
-    }
+/* === BASE THEME === */
+html, body, [class*="css"], .stApp {
+    font-family: 'Inter', sans-serif !important;
+    color: #e2e8f0 !important;
+}
+.stApp {
+    background: linear-gradient(135deg, #0f0c29 0%, #1a1a3e 40%, #24243e 100%) !important;
+}
 
-    /* Sidebar */
-    section[data-testid="stSidebar"] {
-        background-color: #e0e0e0 !important;
-        color: #2e2e2e !important;
-        border-right: 1px solid #cccccc;
-    }
+/* === SCROLLBAR === */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
+::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.4); border-radius: 4px; }
 
-    /* Headers */
-    h1, h2, h3, h4 {
-        color: #2e2e2e !important;
-    }
+/* === SIDEBAR === */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #1e1b4b 0%, #0f0c29 100%) !important;
+    border-right: 1px solid rgba(139,92,246,0.2) !important;
+}
+section[data-testid="stSidebar"] * {
+    color: #e2e8f0 !important;
+}
+section[data-testid="stSidebar"] .stMarkdown h2,
+section[data-testid="stSidebar"] .stMarkdown h3,
+section[data-testid="stSidebar"] header {
+    color: #e9d5ff !important; font-weight: 700 !important;
+}
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] .stMarkdown p,
+section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] .stCaption,
+section[data-testid="stSidebar"] small {
+    color: #cbd5e1 !important;
+}
 
-    /* Widgets */
-    .stTextInput > div > div > input,
-    .stSelectbox > div,
-    .stSlider,
-    .stRadio > div {
-        background-color: #ffffff !important;
-        color: #2e2e2e !important;
-        border: 1px solid #ccc !important;
-        border-radius: 4px !important;
-    }
+/* === GLOBAL LABELS (sliders, inputs) === */
+label[data-testid="stWidgetLabel"] {
+    color: #e2e8f0 !important; font-weight: 500 !important;
+}
 
-    /* Markdown text container */
-    .markdown-text-container {
-        background-color: #fafafa;
-        padding: 1rem;
-        border-radius: 5px;
-    }
+/* === BUTTONS === */
+.stButton > button {
+    background: linear-gradient(135deg, #7c3aed, #6d28d9) !important;
+    color: #fff !important; border: none !important;
+    border-radius: 12px !important; padding: 0.6rem 1.5rem !important;
+    font-weight: 600 !important; font-family: 'Inter', sans-serif !important;
+    transition: all 0.3s ease !important; box-shadow: 0 4px 15px rgba(124,58,237,0.3) !important;
+}
+.stButton > button:hover {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 25px rgba(139,92,246,0.45) !important;
+}
 
-    /* Padding and layout */
-    .block-container {
-        padding: 2rem 4rem;
-    }
-    </style>
-@media (max-width: 768px) {
-    .block-container {
-        padding: 1rem !important;
-    }
-    """,
-    unsafe_allow_html=True
-)
+/* === TABS === */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px; background: rgba(255,255,255,0.03);
+    border-radius: 16px; padding: 6px;
+    border: 1px solid rgba(139,92,246,0.15);
+}
+.stTabs [data-baseweb="tab"] {
+    border-radius: 12px !important; padding: 10px 24px !important;
+    font-family: 'Inter', sans-serif !important; font-weight: 500 !important;
+    color: #a5b4fc !important; transition: all 0.3s ease !important;
+}
+.stTabs [aria-selected="true"] {
+    background: linear-gradient(135deg, #7c3aed, #6d28d9) !important;
+    color: #fff !important; box-shadow: 0 4px 15px rgba(124,58,237,0.3) !important;
+}
 
-st.markdown(
-    """
-    <h1 style='text-align: center; color: #2e2e2e;'>📊 AI Personal Finance Advisor</h1>
-    """,
-    unsafe_allow_html=True
-)
+/* === METRICS === */
+[data-testid="stMetric"] {
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid rgba(139,92,246,0.15) !important;
+    border-radius: 16px !important; padding: 20px !important;
+    backdrop-filter: blur(10px); transition: all 0.3s ease;
+}
+[data-testid="stMetric"]:hover {
+    border-color: rgba(139,92,246,0.4) !important;
+    transform: translateY(-2px); box-shadow: 0 8px 25px rgba(139,92,246,0.15);
+}
+[data-testid="stMetricLabel"] { color: #a5b4fc !important; font-weight: 500 !important; }
+[data-testid="stMetricValue"] { color: #f1f5f9 !important; font-weight: 700 !important; }
 
-   # Load your dataset
-df = pd.read_csv(r"C:\Users\Admin\Documents\AI Personal Finance Advisor\Data\Economic Data.csv")  # Make sure this path is correct
+/* === INPUTS / SLIDERS / SELECTS === */
+.stSlider > div > div > div { background: #7c3aed !important; }
+.stSelectbox > div > div, .stTextInput > div > div {
+    background: rgba(255,255,255,0.05) !important;
+    border: 1px solid rgba(139,92,246,0.2) !important;
+    border-radius: 10px !important; color: #e2e8f0 !important;
+}
 
-# Show the data
-st.subheader("📊 Economic Data Preview")
-st.dataframe(df.head())
+/* === DATAFRAME === */
+[data-testid="stDataFrame"] {
+    border: 1px solid rgba(139,92,246,0.15) !important;
+    border-radius: 12px !important; overflow: hidden;
+}
 
-# Suggest top 5 investments by average return if available
-if 'Return' in df.columns and 'Ticker' in df.columns:
-    st.subheader("💡 Top 5 Investment Suggestions")
-    top_stocks = df.groupby("Ticker")['Return'].mean().sort_values(ascending=False).head(10)
-    st.table(top_stocks)
-else:
-    st.info("Note: Add 'Return' and 'Ticker' columns in your dataset for suggestions.")
-import streamlit as st
-import pandas as pd
+/* === ALERTS === */
+.stAlert { border-radius: 12px !important; backdrop-filter: blur(10px); }
 
-# Load your dataset
-df = pd.read_csv(r"C:\Users\Admin\Documents\AI Personal Finance Advisor\Data\Economic Data.csv")
+/* === CUSTOM GLASS CARD === */
+.glass-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(139,92,246,0.15);
+    border-radius: 20px; padding: 28px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    margin-bottom: 1.5rem;
+    transition: all 0.3s ease;
+}
+.glass-card:hover {
+    border-color: rgba(139,92,246,0.35);
+    box-shadow: 0 12px 40px rgba(139,92,246,0.12);
+}
+.glass-card h3 { color: #c4b5fd; margin-top: 0; }
+.glass-card p, .glass-card li { color: #cbd5e1; line-height: 1.7; }
 
-# Show data preview
-st.write("### 📊 Economic Data Preview")
-st.dataframe(df)
-import streamlit as st
-import pandas as pd
+/* === HEADER BANNER === */
+.header-banner {
+    text-align: center; padding: 2.5rem 1rem 1.5rem;
+    animation: fadeSlideIn 0.8s ease-out;
+}
+.header-banner h1 {
+    font-size: 2.4rem; font-weight: 800;
+    background: linear-gradient(135deg, #a78bfa, #818cf8, #c084fc);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 0.3rem;
+}
+.header-banner p { color: #94a3b8; font-size: 1.05rem; font-weight: 400; }
 
-# Load your dataset
-df = pd.read_csv(r"C:\Users\Admin\Documents\AI Personal Finance Advisor\Data\Economic Data.csv")
+/* === LOGIN CARD === */
+.login-card {
+    max-width: 420px; margin: 6rem auto;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(139,92,246,0.2);
+    border-radius: 24px; padding: 2.5rem;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    text-align: center;
+    animation: fadeSlideIn 0.6s ease-out;
+}
+.login-card h2 {
+    font-size: 1.8rem; font-weight: 700;
+    background: linear-gradient(135deg, #a78bfa, #c084fc);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.login-card p { color: #94a3b8; font-size: 0.9rem; }
 
-st.write("Summary Statistics:")
-st.write(df.describe())
+/* === SUGGESTION ITEM === */
+.suggestion-item {
+    background: rgba(255,255,255,0.04);
+    border-left: 3px solid #7c3aed;
+    border-radius: 0 12px 12px 0;
+    padding: 14px 20px; margin-bottom: 10px;
+    color: #cbd5e1; font-size: 0.95rem; line-height: 1.6;
+    transition: all 0.2s ease;
+}
+.suggestion-item:hover { background: rgba(139,92,246,0.08); }
 
-st.write("Available columns:", df.columns.tolist())
+/* === ANIMATION === */
+@keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
 
-metric = st.selectbox(
-    "Select a metric to visualize:",
-    df.columns[2:]  # Skips 'Date' if it's the first column
-)
+/* === DIVIDER === */
+.styled-divider {
+    height: 1px; border: none; margin: 2rem 0;
+    background: linear-gradient(90deg, transparent, rgba(139,92,246,0.3), transparent);
+}
+</style>
+""", unsafe_allow_html=True)
 
-st.line_chart(df["GDP Growth (%)"])
-# --- Financial Suggestions with Visuals ---
-st.header("📊 Financial Suggestions Based on Economic Indicators")
-st.markdown("---")
+# --- 4. AUTHENTICATION ---
+# (Demo user=admin, password=123#)
+users = {"admin": "123#", "user": "123*"}
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
 
-latest_data = df.iloc[-1]  # Get the most recent data row
+if not st.session_state.authenticated:
+    st.markdown("""
+    <div class="login-card">
+        <div style="font-size: 3rem; margin-bottom: 0.5rem;">🔐</div>
+        <h2>Welcome Back</h2>
+        <p>Sign in to your AI Finance Advisor</p>
+    </div>
+    """, unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1.2, 1])
+    with col2:
+        username = st.text_input("Username", placeholder="Enter username")
+        password = st.text_input("Password", type="password", placeholder="Enter password")
+        if st.button("🚀 Sign In", use_container_width=True):
+            if username in users and users[username] == password:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("Invalid credentials — Demo: user=admin, pass=123#")
+        st.caption("🔑 Demo accounts: admin/123# or user/123*")
+    st.stop()
 
-# Extract key indicators
-gdp = latest_data["GDP Growth (%)"]
-inflation = latest_data["Inflation Rate (%)"]
-unemployment = latest_data["Unemployment Rate (%)"]
-interest_rate = latest_data["Interest Rate (%)"]
+# --- 5. DATA LOADING (ONLY ONCE) ---
+@st.cache_data
+def load_data():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(base_dir, "Data", "Economic Data.csv")
+    try:
+        df = pd.read_csv(file_path)
+        if 'Date' in df.columns:
+            df['Date'] = pd.to_datetime(df['Date'])
+        return df
+    except FileNotFoundError:
+        st.error("Error: The data file was not found.")
+        st.info("Please make sure 'Economic Data.csv' is inside a 'Data' folder.")
+        return None
+    except Exception as e:
+        st.error(f"An error occurred while loading data: {e}")
+        return None
 
-# Visual suggestion logic
-st.subheader("📈 Economic Overview:")
+df = load_data()
+if df is None or df.empty:
+    st.error("Data could not be loaded. App cannot continue.")
+    st.stop()
 
-col1, col2 = st.columns(2)
+# --- 6. HEADER BANNER ---
+st.markdown("""
+<div class="header-banner">
+    <h1>📊 AI Personal Finance Advisor</h1>
+    <p>Smart insights powered by economic data & AI-driven analysis</p>
+</div>
+""", unsafe_allow_html=True)
 
-with col1:
-    st.metric("GDP Growth (%)", f"{gdp:.2f}")
-    st.metric("Inflation Rate (%)", f"{inflation:.2f}")
-with col2:
-    st.metric("Unemployment Rate (%)", f"{unemployment:.2f}")
-    st.metric("Interest Rate (%)", f"{interest_rate:.2f}")
-
-st.markdown("---")
-st.subheader("💡 Investment Suggestions:")
-
-if gdp > 2:
-    st.success("✅ **Strong GDP Growth**: Consider investing in growth stocks, tech sectors, or ETFs.")
-else:
-    st.warning("⚠️ **Weak GDP Growth**: Be cautious. Focus on defensive assets like bonds or stable-dividend stocks.")
-
-if inflation > 4:
-    st.error("🔥 **High Inflation**: Protect purchasing power—consider gold, commodities, or inflation-protected bonds (TIPS).")
-else:
-    st.info("💠 **Stable Inflation**: Favorable for long-term equity investments and bonds.")
-
-if unemployment > 6:
-    st.warning("📉 **High Unemployment**: Economic slowdown likely. Defensive sectors like healthcare or utilities may perform better.")
-else:
-    st.success("🧑‍💼 **Healthy Job Market**: Supports retail, travel, and consumer discretionary sectors.")
-
-if interest_rate > 5:
-    st.error("💸 **High Interest Rates**: Borrowing costs are high. Prioritize short-duration bonds or savings accounts.")
-else:
-    st.info("🏡 **Low Interest Rates**: Real estate and growth stocks may benefit from cheaper borrowing.")
-
-st.markdown("---")
-st.caption("📘 These are general suggestions. Always consider your risk profile and consult a financial advisor.")
+# --- 6. SIDEBAR CONTROLS ---
 st.sidebar.header("🎯 Your Financial Goal")
-
 goal = st.sidebar.selectbox(
     "Choose your primary investment goal:",
     ["Retirement", "Buying a Home", "Wealth Growth", "Short-Term Savings", "Capital Preservation"]
 )
-st.subheader("💡 Personalized Investment Suggestions:")
 
-# Function for logic based on goal + economic data
+st.sidebar.header("🗓️ Select Date for Analysis")
+date_options = df['Date'].dt.strftime('%Y-%m-%d').tolist()
+selected_date_str = st.sidebar.selectbox("Choose Date", options=date_options, index=len(date_options)-1)
+selected_date = pd.to_datetime(selected_date_str)
+
+st.sidebar.header("🔮 Economic Scenario Simulation")
+st.sidebar.caption("Simulate conditions to see suggestions change.")
+# Get default values from the latest data
+latest_data = df.iloc[-1]
+sim_gdp = st.sidebar.slider("Simulated GDP Growth (%)", -5.0, 15.0, float(latest_data["GDP Growth (%)"]))
+sim_inflation = st.sidebar.slider("Simulated Inflation Rate (%)", 0.0, 15.0, float(latest_data["Inflation Rate (%)"]))
+sim_unemployment = st.sidebar.slider("Simulated Unemployment Rate (%)", 0.0, 15.0, float(latest_data["Unemployment Rate (%)"]))
+sim_interest = st.sidebar.slider("Simulated Interest Rate (%)", 0.0, 15.0, float(latest_data["Interest Rate (%)"]))
+
+
+# --- 7. HELPER FUNCTIONS ---
+
+# Function for goal-based suggestions
 def generate_suggestions(goal, gdp, inflation, unemployment, interest_rate):
     suggestions = []
-
     # Retirement
     if goal == "Retirement":
         suggestions.append("💼 Contribute regularly to retirement accounts (e.g., 401(k), IRA).")
@@ -213,7 +287,6 @@ def generate_suggestions(goal, gdp, inflation, unemployment, interest_rate):
             suggestions.append("🛡️ Use inflation-protected assets like TIPS and dividend-paying stocks.")
         else:
             suggestions.append("📈 Consider a balanced mix of stocks and bonds.")
-
     # Buying a Home
     elif goal == "Buying a Home":
         suggestions.append("🏠 Start or grow a high-yield savings account for your down payment.")
@@ -221,7 +294,6 @@ def generate_suggestions(goal, gdp, inflation, unemployment, interest_rate):
             suggestions.append("⏳ Mortgage rates are high—consider delaying purchase or locking rates now.")
         else:
             suggestions.append("✅ Low rates—evaluate mortgage options and affordability.")
-
     # Wealth Growth
     elif goal == "Wealth Growth":
         suggestions.append("🚀 Focus on long-term growth assets like ETFs, tech stocks, or index funds.")
@@ -229,586 +301,294 @@ def generate_suggestions(goal, gdp, inflation, unemployment, interest_rate):
             suggestions.append("🌱 Strong economy supports aggressive growth investing.")
         else:
             suggestions.append("🔍 Diversify with stable sectors (e.g., healthcare, utilities) for balance.")
-
-    # Short-Term Savings
-    elif goal == "Short-Term Savings":
-        suggestions.append("💰 Use liquid instruments like money market funds, short-term bonds, or savings accounts.")
-        if inflation > 4:
-            suggestions.append("⚠️ Avoid holding too much cash—seek higher-yield alternatives.")
-        else:
-            suggestions.append("🧊 Inflation is manageable—prioritize safety and liquidity.")
-
-    # Capital Preservation
-    elif goal == "Capital Preservation":
-        suggestions.append("🔒 Focus on minimizing risk with government bonds, CDs, or blue-chip dividend stocks.")
-        if inflation > 4:
-            suggestions.append("🏦 Consider I-bonds or short-duration TIPS to guard against inflation.")
-        else:
-            suggestions.append("📉 Low-risk environment—stay diversified and cautious.")
+    # Add other goals...
+    else:
+        suggestions.append("Select a goal to see personalized tips.")
 
     return suggestions
 
-# Generate and display personalized suggestions
-advice = generate_suggestions(goal, gdp, inflation, unemployment, interest_rate)
-for item in advice:
-    st.markdown(f"- {item}")
-
-st.sidebar.header("🔮 Economic Scenario Simulation")
-
-sim_gdp = st.sidebar.slider("GDP Growth (%)", min_value=-5.0, max_value=15.0, value=float(df["GDP Growth (%)"].iloc[-1]))
-sim_inflation = st.sidebar.slider("Inflation Rate (%)", min_value=0.0, max_value=15.0, value=float(df["Inflation Rate (%)"].iloc[-1]))
-sim_unemployment = st.sidebar.slider("Unemployment Rate (%)", min_value=0.0, max_value=15.0, value=float(df["Unemployment Rate (%)"].iloc[-1]))
-sim_interest = st.sidebar.slider("Interest Rate (%)", min_value=0.0, max_value=15.0, value=float(df["Interest Rate (%)"].iloc[-1]))
-
-import streamlit as st
-import pandas as pd
-import altair as alt
-
-# Load your data (adjust path as needed)
-df = pd.read_csv(r"C:\Users\Admin\Documents\AI Personal Finance Advisor\Data\Economic Data.csv")
-
-# Sidebar: Select Date for Analysis
-st.sidebar.header("Select Date")
-date_options = df['Date'].tolist()
-selected_date = st.sidebar.selectbox("Choose Date", options=date_options, index=len(date_options)-1)
-
-# Filter data for the selected date
-selected_data = df[df['Date'] == selected_date].iloc[0]
-
-# Extract key indicators dynamically
-inflation = selected_data['Inflation Rate (%)']
-gdp_growth = selected_data['GDP Growth (%)']
-gold_price = selected_data['Gold Price (USD per Ounce)']
-real_estate_index = selected_data['Real Estate Index']
-unemployment = selected_data['Unemployment Rate (%)']
-interest_rate = selected_data['Interest Rate (%)']
-
-# Portfolio Diversification Tips based on data
-tips = []
-if inflation > 3.0:
-    tips.append("Inflation is high. Consider investing more in gold and real estate to protect your portfolio.")
-if gdp_growth > 2.5:
-    tips.append("Strong GDP growth detected. Increasing equity exposure could benefit your portfolio.")
-if inflation <= 3.0 and gdp_growth <= 2.5:
-    tips.append("Market conditions are stable. Maintain a balanced portfolio across asset classes.")
-if gold_price > df['Gold Price (USD per Ounce)'].mean():
-    tips.append("Gold prices are currently above average; be cautious with new gold investments.")
-if real_estate_index < df['Real Estate Index'].mean():
-    tips.append("Real estate market seems undervalued; could be a buying opportunity.")
-if not tips:
-    tips.append("No specific diversification recommendations at this time.")
-
-# Risk Indicator based on simple rules
-risk_level = "Moderate"
-if inflation > 5 or unemployment > 8 or interest_rate > 6:
-    risk_level = "High"
-elif inflation < 2 and unemployment < 5 and interest_rate < 3:
-    risk_level = "Low"
-
-# Display selected date and risk level
-st.header(f"Market Summary for {selected_date}")
-st.markdown(f"**Risk Level:** {risk_level}")
-
-# Show Diversification Tips
-st.subheader("Portfolio Diversification Tips")
-for tip in tips:
-    st.write("- " + tip)
-
-# Prepare chart data for selected date's key indicators
-chart_data = pd.DataFrame({
-    "Indicator": ["Inflation Rate (%)", "GDP Growth (%)", "Gold Price (USD per Ounce)", "Real Estate Index", "Unemployment Rate (%)", "Interest Rate (%)"],
-    "Value": [inflation, gdp_growth, gold_price, real_estate_index, unemployment, interest_rate]
-})
-
-# Bar chart with Altair
-bar_chart = alt.Chart(chart_data).mark_bar(color="#4e79a7").encode(
-    x=alt.X('Value:Q', title='Value'),
-    y=alt.Y('Indicator:N', sort='-x', title='Economic Indicator')
-).properties(height=300)
-
-st.altair_chart(bar_chart, use_container_width=True)
-
-import streamlit as st
-
-# Example risk score (calculate based on your data/logic)
-risk_score = 0.75  # Just a dummy value between 0 (low) and 1 (high)
-
-# Thresholds for alerts
-if risk_score > 0.7:
-    st.error("⚠️ High Risk Alert: Your portfolio risk has increased significantly!")
-elif risk_score > 0.4:
-    st.warning("⚠️ Moderate Risk Alert: Keep an eye on your portfolio's risk.")
-else:
-    st.success("✅ Risk level is low and stable.")
-
-from fpdf import FPDF
-import streamlit as st
-from io import BytesIO
-
-# Example PDF generation
-pdf = FPDF()
-pdf.add_page()
-pdf.set_font("Arial", size=12)
-pdf.cell(200, 10, txt="Portfolio Suggestions", ln=True)
-pdf.cell(200, 10, txt="Diversify your assets across equities, bonds, and real estate.", ln=True)
-
-# Output PDF as a byte string
-pdf_bytes = pdf.output(dest='S').encode('latin1')
-
-# Wrap in BytesIO for download
-pdf_buffer = BytesIO(pdf_bytes)
-
-# Streamlit download button
-st.download_button(
-    label="📄 Download PDF",
-    data=pdf_buffer,
-    file_name="portfolio_suggestions.pdf",
-    mime="application/pdf"
-)
-import streamlit as st
-import pandas as pd
-import numpy as np
-
-st.subheader("📊 Interactive Portfolio Allocation")
-
-# Slider inputs
-st.markdown("### Set Your Target Allocations (%)")
-stocks = st.slider("Stocks", 0, 100, 50)
-bonds = st.slider("Bonds", 0, 100, 30)
-real_estate = st.slider("Real Estate", 0, 100, 10)
-cash = st.slider("Cash", 0, 100, 10)
-
-total_alloc = stocks + bonds + real_estate + cash
-
-# Normalize if total != 100
-if total_alloc != 100:
-    st.warning(f"Total is {total_alloc}%. Normalizing...")
-    total = stocks + bonds + real_estate + cash
-    stocks, bonds, real_estate, cash = [round(x / total * 100) for x in [stocks, bonds, real_estate, cash]]
-
-# Risk Score (simple rule-based example)
-risk_score = (stocks * 0.6 + real_estate * 0.3 - bonds * 0.4 - cash * 0.5) / 100
-risk_level = "High" if risk_score > 0.5 else "Medium" if risk_score > 0.2 else "Low"
-
-# Simulate performance (example returns + stdev)
-expected_return = stocks * 0.08 + bonds * 0.03 + real_estate * 0.06 + cash * 0.02
-volatility = stocks * 0.15 + bonds * 0.05 + real_estate * 0.1 + cash * 0.01
-
-st.markdown(f"**Risk Level:** `{risk_level}`")
-st.markdown(f"**Expected 1-Year Return:** `{expected_return:.2f}%`")
-st.markdown(f"**Estimated Volatility:** `{volatility:.2f}%`")
-
-# Display as table
-alloc_df = pd.DataFrame({
-    "Asset Class": ["Stocks", "Bonds", "Real Estate", "Cash"],
-    "Allocation (%)": [stocks, bonds, real_estate, cash]
-})
-
-st.dataframe(alloc_df)
-
-# Download
-csv_data = alloc_df.to_csv(index=False).encode("utf-8")
-st.download_button("💾 Download Allocation (CSV)", csv_data, "portfolio_allocation.csv", "text/csv")
-import streamlit as st
-import pandas as pd
-import numpy as np
-
-# --- Tax Efficient Suggestions ---
-def tax_efficiency_tips(portfolio_df):
+# Function for tax efficiency tips
+def tax_efficiency_tips(alloc_df):
     tips = []
-    # Simple rules for demo
-    if portfolio_df['Allocation %'].loc[portfolio_df['Asset Class'] == 'Stocks'].values.sum() > 50:
-        tips.append("Consider holding stocks long-term to reduce capital gains tax.")
-    if portfolio_df['Allocation %'].loc[portfolio_df['Asset Class'] == 'Municipal Bonds'].values.sum() > 0:
-        tips.append("Municipal bonds generate tax-free income. Good choice!")
-    if portfolio_df['Allocation %'].loc[portfolio_df['Asset Class'] == 'High Turnover Funds'].values.sum() > 10:
-        tips.append("Consider moving high-turnover funds to tax-advantaged accounts.")
+    if 'Stocks' in alloc_df['Asset Class'].values and alloc_df.loc[alloc_df['Asset Class'] == 'Stocks', 'Allocation %'].values[0] > 50:
+        tips.append("Consider holding stocks long-term (over 1 year) to benefit from lower capital gains tax rates.")
+    if 'Municipal Bonds' in alloc_df['Asset Class'].values and alloc_df.loc[alloc_df['Asset Class'] == 'Municipal Bonds', 'Allocation %'].values[0] > 0:
+        tips.append("Municipal bonds generate tax-free income at the federal level. Good choice!")
+    if 'High Turnover Funds' in alloc_df['Asset Class'].values and alloc_df.loc[alloc_df['Asset Class'] == 'High Turnover Funds', 'Allocation %'].values[0] > 10:
+        tips.append("Consider moving high-turnover funds to tax-advantaged accounts (like an IRA) to avoid annual tax drag.")
     if not tips:
-        tips.append("Your portfolio looks tax-efficient.")
+        tips.append("Your portfolio looks tax-efficient. Remember to consult a tax professional.")
     return tips
 
-# --- Summary Dashboard ---
-def portfolio_summary(portfolio_df, total_value):
-    st.subheader("Portfolio Summary")
-    st.write(f"Total Portfolio Value: ${total_value:,.2f}")
-    
-    st.write("**Allocation Breakdown:**")
-    st.bar_chart(portfolio_df.set_index('Asset Class')['Allocation %'])
-    
-    # Example KPIs
-    ytd_return = np.random.uniform(-0.1, 0.2)  # placeholder for real calc
-    volatility = np.random.uniform(0.05, 0.25)  # placeholder
-    
-    st.write(f"Year-to-Date Return: {ytd_return*100:.2f}%")
-    st.write(f"Volatility: {volatility*100:.2f}%")
-    
-    tax_tips = tax_efficiency_tips(portfolio_df)
-    st.write("### Tax Efficiency Tips:")
-    for tip in tax_tips:
-        st.info(tip)
 
-# Usage example
-portfolio_df = pd.DataFrame({
-    'Asset Class': ['Stocks', 'Bonds', 'Municipal Bonds', 'High Turnover Funds', 'Cash'],
-    'Allocation %': [60, 20, 5, 10, 5]
-})
-total_value = 100000  # example
+# --- 8. APP LAYOUT (USING TABS) ---
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📈 Economic Dashboard",
+    "💡 Personalized Suggestions",
+    "📊 Portfolio Builder",
+    "📋 Report & Feedback"
+])
 
-portfolio_summary(portfolio_df, total_value)
-import streamlit as st
-import pandas as pd
-import numpy as np
-import altair as alt
+# Altair dark theme config
+dark_theme = {
+    "config": {
+        "background": "transparent",
+        "title": {"color": "#c4b5fd", "font": "Inter"},
+        "axis": {
+            "labelColor": "#94a3b8", "titleColor": "#a5b4fc",
+            "gridColor": "rgba(139,92,246,0.08)", "domainColor": "rgba(139,92,246,0.2)"
+        },
+        "legend": {"labelColor": "#cbd5e1", "titleColor": "#a5b4fc"},
+        "view": {"stroke": "transparent"}
+    }
+}
+alt.themes.register("dark_custom", lambda: dark_theme)
+alt.themes.enable("dark_custom")
 
-# Replace this with your actual portfolio data loading logic.
-portfolio_df = pd.DataFrame({
-    'Asset Class': ['Stocks', 'Bonds', 'Municipal Bonds', 'High Turnover Funds', 'Cash'],
-    'Allocation %': [60, 20, 5, 10, 5],
-    'YTD Return %': [12, 4, 2, 8, 0.5],  # example returns
-})
+# --- TAB 1: ECONOMIC DASHBOARD ---
+with tab1:
+    st.markdown('<div class="glass-card"><h3>📋 Economic Data Preview</h3></div>', unsafe_allow_html=True)
+    st.dataframe(df.head(), use_container_width=True)
 
-total_value = 100000  # Example total portfolio value, replace with your variable
-risk_level = "Balanced"  # Replace with user-selected or calculated risk level
+    st.markdown('<hr class="styled-divider">', unsafe_allow_html=True)
 
-# --- Helper functions ---
-def annualized_return(returns, periods=252):
-    return ((1 + np.mean(returns) / 100) ** periods - 1) * 100
+    st.markdown('<div class="glass-card"><h3>📊 Summary Statistics</h3></div>', unsafe_allow_html=True)
+    st.write(df.describe())
 
-def volatility(returns):
-    return np.std(returns) * np.sqrt(252) * 100
+    st.markdown('<hr class="styled-divider">', unsafe_allow_html=True)
 
-def sharpe_ratio(avg_return, vol, risk_free_rate=2):
-    return (avg_return - risk_free_rate) / vol if vol != 0 else 0
+    st.markdown('<div class="glass-card"><h3>📉 Visualize Economic Indicators</h3></div>', unsafe_allow_html=True)
+    numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+    metric = st.selectbox("Select a metric to visualize:", numeric_cols)
+    if metric:
+        chart_df = df[['Date', metric]].dropna()
+        line_chart = alt.Chart(chart_df).mark_area(
+            line={"color": "#8b5cf6"},
+            color=alt.Gradient(gradient="linear", stops=[
+                alt.GradientStop(color="rgba(139,92,246,0.4)", offset=0),
+                alt.GradientStop(color="rgba(139,92,246,0.0)", offset=1)
+            ], x1=0, x2=0, y1=1, y2=0)
+        ).encode(
+            x=alt.X("Date:T", title="Date"),
+            y=alt.Y(f"{metric}:Q", title=metric),
+            tooltip=["Date:T", f"{metric}:Q"]
+        ).properties(height=350)
+        st.altair_chart(line_chart, use_container_width=True)
 
-def tax_efficiency_score(portfolio):
-    muni = portfolio.loc[portfolio['Asset Class'] == 'Municipal Bonds', 'Allocation %'].sum()
-    cash = portfolio.loc[portfolio['Asset Class'] == 'Cash', 'Allocation %'].sum()
-    score = muni * 2 + cash
-    return min(score, 100)
+    # Top Investment Suggestions (if columns exist)
+    if 'Return' in df.columns and 'Ticker' in df.columns:
+        st.markdown('<div class="glass-card"><h3>💡 Top 10 Investments (by Avg. Return)</h3></div>', unsafe_allow_html=True)
+        top_stocks = df.groupby("Ticker")['Return'].mean().sort_values(ascending=False).head(10)
+        st.table(top_stocks)
+    else:
+        st.info("ℹ️ Add 'Return' and 'Ticker' columns in your dataset for stock-specific suggestions.")
 
-def tax_efficiency_tips(portfolio):
+# --- TAB 2: PERSONALIZED SUGGESTIONS ---
+with tab2:
+    st.markdown(f"""
+    <div class="glass-card">
+        <h3>💡 Goal-Based Insights</h3>
+        <p>Your selected goal: <strong style="color:#a78bfa">{goal}</strong></p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Display simulated metrics in 4 columns
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("GDP Growth", f"{sim_gdp:.2f}%")
+    with col2:
+        st.metric("Inflation", f"{sim_inflation:.2f}%")
+    with col3:
+        st.metric("Unemployment", f"{sim_unemployment:.2f}%")
+    with col4:
+        st.metric("Interest Rate", f"{sim_interest:.2f}%")
+
+    st.markdown('<hr class="styled-divider">', unsafe_allow_html=True)
+
+    # Generate and display personalized suggestions with styled cards
+    advice = generate_suggestions(goal, sim_gdp, sim_inflation, sim_unemployment, sim_interest)
+    st.markdown('<div class="glass-card"><h3>🎯 Your Personalized Advice</h3></div>', unsafe_allow_html=True)
+    for item in advice:
+        st.markdown(f'<div class="suggestion-item">{item}</div>', unsafe_allow_html=True)
+
+    st.markdown('<hr class="styled-divider">', unsafe_allow_html=True)
+
+    # --- Market Summary for Selected Date ---
+    st.markdown(f"""
+    <div class="glass-card">
+        <h3>📊 Market Summary — {selected_date_str}</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    selected_data = df[df['Date'] == selected_date].iloc[0]
+
+    inflation = selected_data['Inflation Rate (%)']
+    gdp_growth = selected_data['GDP Growth (%)']
+    unemployment = selected_data['Unemployment Rate (%)']
+    interest_rate = selected_data['Interest Rate (%)']
+
+    # Risk Indicator with color coding
+    risk_level = "Moderate"
+    risk_color = "#eab308"
+    if inflation > 5 or unemployment > 8 or interest_rate > 6:
+        risk_level = "High"
+        risk_color = "#ef4444"
+    elif inflation < 2 and unemployment < 5 and interest_rate < 3:
+        risk_level = "Low"
+        risk_color = "#22c55e"
+
+    st.markdown(f"""
+    <div class="suggestion-item" style="border-left-color: {risk_color};">
+        <strong>Market Risk Level:</strong> <span style="color:{risk_color}; font-weight:700;">{risk_level}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Diversification Tips
     tips = []
-    if portfolio['Allocation %'].loc[portfolio['Asset Class']=='High Turnover Funds'].sum() > 10:
-        tips.append("Consider moving high-turnover funds to tax-advantaged accounts.")
-    if portfolio['Allocation %'].loc[portfolio['Asset Class']=='Municipal Bonds'].sum() > 0:
-        tips.append("Municipal bonds provide tax-free income—good for tax efficiency.")
+    if inflation > 3.0:
+        tips.append("📈 Inflation was high. Consider assets like gold and real estate to hedge.")
+    if gdp_growth > 2.5:
+        tips.append("💪 Strong GDP growth detected. Equities may have been a good investment.")
     if not tips:
-        tips.append("Your portfolio looks tax-efficient.")
-    return tips
+        tips.append("⚖️ Market conditions appear stable. A balanced portfolio is recommended.")
 
-# --- Calculations ---
-avg_ytd_return = portfolio_df['YTD Return %'].mean()
-vol = volatility(portfolio_df['YTD Return %'])
-sharpe = sharpe_ratio(avg_ytd_return, vol)
-tax_score = tax_efficiency_score(portfolio_df)
+    for tip in tips:
+        st.markdown(f'<div class="suggestion-item">{tip}</div>', unsafe_allow_html=True)
 
-# --- Streamlit UI Section ---
-def portfolio_summary_dashboard():
-    st.header("📊 Portfolio Summary Dashboard")
+# --- TAB 3: PORTFOLIO BUILDER ---
+with tab3:
+    st.markdown('<div class="glass-card"><h3>🏗️ Build Your Portfolio</h3><p>Adjust the sliders to set your target asset allocations.</p></div>', unsafe_allow_html=True)
 
-    # Portfolio Overview
-    st.subheader("Portfolio Overview")
-    st.write(f"**Total Portfolio Value:** ${total_value:,.2f}")
-    pie_chart = alt.Chart(portfolio_df).mark_arc().encode(
-        theta=alt.Theta(field="Allocation %", type="quantitative"),
-        color=alt.Color(field="Asset Class", type="nominal"),
-        tooltip=['Asset Class', 'Allocation %']
-    ).properties(width=350, height=350)
-    st.altair_chart(pie_chart)
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        stocks = st.slider("📈 Stocks", 0, 100, 50)
+        bonds = st.slider("🏦 Bonds", 0, 100, 30)
+    with col_s2:
+        real_estate = st.slider("🏠 Real Estate", 0, 100, 10)
+        cash = st.slider("💵 Cash", 0, 100, 10)
 
-    # Performance Metrics
-    st.subheader("Performance Metrics")
+    total_alloc = stocks + bonds + real_estate + cash
+    st.progress(min(total_alloc, 100))
+
+    if total_alloc != 100:
+        st.error(f"⚠️ Total allocation is **{total_alloc}%** — it must sum to exactly 100%.")
+    else:
+        st.success("✅ Perfect! Your allocation sums to 100%.")
+
+    # Risk Score & Performance
+    risk_score = (stocks * 0.6 + real_estate * 0.3 - bonds * 0.4 - cash * 0.5) / 100
+    risk_level = "High" if risk_score > 0.4 else "Medium" if risk_score > 0.15 else "Low"
+    expected_return = (stocks * 0.08 + bonds * 0.03 + real_estate * 0.06 + cash * 0.02) / 100
+    volatility = (stocks * 0.15 + bonds * 0.05 + real_estate * 0.1 + cash * 0.01) / 100
+
+    st.markdown('<hr class="styled-divider">', unsafe_allow_html=True)
+    st.markdown('<div class="glass-card"><h3>📊 Portfolio Summary</h3></div>', unsafe_allow_html=True)
+
     col1, col2, col3 = st.columns(3)
-    col1.metric("YTD Return (%)", f"{avg_ytd_return:.2f}")
-    col2.metric("Annualized Volatility (%)", f"{vol:.2f}")
-    col3.metric("Sharpe Ratio", f"{sharpe:.2f}")
+    col1.metric("Risk Level", risk_level)
+    col2.metric("Expected Return", f"{expected_return:.2%}")
+    col3.metric("Volatility", f"{volatility:.2%}")
 
-    # Risk & Allocation
-    st.subheader("Risk & Allocation")
-    st.write(f"Risk Level: **{risk_level}**")
-    max_drawdown = -0.15  # Placeholder: Replace with your data-driven value
-    beta = 1.1            # Placeholder
-    st.write(f"Max Drawdown (historical): {max_drawdown*100:.2f}%")
-    st.write(f"Beta vs Market: {beta:.2f}")
+    # Risk Alert
+    if risk_score > 0.4:
+        st.error("🔴 High Risk: Your portfolio is aggressive and may see high volatility.")
+    elif risk_score > 0.15:
+        st.warning("🟡 Moderate Risk: Balanced but carries moderate risk.")
+    else:
+        st.success("🟢 Low Risk: Conservative — prioritizes capital preservation.")
+
+    st.markdown('<hr class="styled-divider">', unsafe_allow_html=True)
+
+    # Display chart
+    alloc_df = pd.DataFrame({
+        "Asset Class": ["Stocks", "Bonds", "Real Estate", "Cash"],
+        "Allocation %": [stocks, bonds, real_estate, cash]
+    })
+
+    pie_chart = alt.Chart(alloc_df).mark_arc(
+        outerRadius=140, innerRadius=60, cornerRadius=6
+    ).encode(
+        theta=alt.Theta(field="Allocation %", type="quantitative"),
+        color=alt.Color(field="Asset Class", type="nominal",
+            scale=alt.Scale(range=["#8b5cf6", "#6366f1", "#a78bfa", "#c4b5fd"])
+        ),
+        tooltip=["Asset Class", "Allocation %"]
+    ).properties(title="Portfolio Allocation", height=380)
+
+    st.altair_chart(pie_chart, use_container_width=True)
 
     # Tax Efficiency
-    st.subheader("Tax Efficiency")
-    st.write(f"Tax Efficiency Score: {tax_score:.0f}/100")
-    for tip in tax_efficiency_tips(portfolio_df):
-        st.info(tip)
+    st.markdown('<div class="glass-card"><h3>🧾 Tax Efficiency Tips</h3></div>', unsafe_allow_html=True)
+    for tip in tax_efficiency_tips(alloc_df):
+        st.markdown(f'<div class="suggestion-item">{tip}</div>', unsafe_allow_html=True)
 
-    # Alerts (example)
-    st.subheader("Alerts & Notifications")
-    st.success("No immediate alerts. Your portfolio is balanced.")
+    st.markdown('<hr class="styled-divider">', unsafe_allow_html=True)
+    csv_data = alloc_df.to_csv(index=False).encode("utf-8")
+    st.download_button("💾 Download Allocation (CSV)", csv_data, "portfolio_allocation.csv", "text/csv")
 
-# Call this function somewhere in your app where you want the dashboard to show
-portfolio_summary_dashboard()
-import streamlit as st
-import pandas as pd
-import numpy as np
+# --- TAB 4: REPORT & FEEDBACK ---
+with tab4:
+    st.markdown("""
+    <div class="glass-card">
+        <h3>📄 Generate Your Report</h3>
+        <p>Create a downloadable PDF summary of your financial goals and portfolio allocation.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-# Custom CSS for nicer fonts and spacing
-st.markdown("""
-<style>
-    body {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-    .stButton>button {
-        background-color: #4CAF50;
-        color: white;
-        border-radius: 8px;
-        padding: 8px 16px;
-        font-weight: bold;
-    }
-    .stButton>button:hover {
-        background-color: #45a049;
-        color: white;
-    }
-    .block-container {
-        padding-top: 1rem;
-        padding-bottom: 2rem;
-    }
-</style>
-""", unsafe_allow_html=True)
+    if st.button("🚀 Generate PDF Report", use_container_width=True):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', size=16)
+        pdf.cell(200, 10, txt="My AI Financial Report", ln=True, align='C')
 
-st.title("📊 Portfolio Assessment")
+        pdf.set_font("Arial", 'B', size=12)
+        pdf.cell(200, 10, txt="My Financial Goal", ln=True)
+        pdf.set_font("Arial", size=12)
+        pdf.cell(200, 10, txt=f"- {goal}", ln=True)
 
-# Sidebar inputs & navigation
-with st.sidebar:
-    st.header("Configure your Portfolio")
-    
-    risk_level = st.selectbox(
-        "Select Risk Level 🎯",
-        ["Conservative", "Balanced", "Aggressive"],
-        key="risk_level"
-    )
-    
-    st.markdown("---")
-    st.header("Filters & Export")
-    
-    export_format = st.radio("Export Portfolio As:", ["CSV", "PDF"], index=0)
-    export_button = st.button("💾 Export Portfolio")
-    
-    st.markdown("---")
-    st.caption("Developed by Yash Vaswani")
+        pdf.set_font("Arial", 'B', size=12)
+        pdf.cell(200, 10, txt="My Portfolio Allocation", ln=True)
+        pdf.set_font("Arial", size=12)
+        pdf.cell(200, 8, txt=f"- Stocks: {stocks}%", ln=True)
+        pdf.cell(200, 8, txt=f"- Bonds: {bonds}%", ln=True)
+        pdf.cell(200, 8, txt=f"- Real Estate: {real_estate}%", ln=True)
+        pdf.cell(200, 8, txt=f"- Cash: {cash}%", ln=True)
 
-# Dummy portfolio data for demonstration
-portfolio_df = pd.DataFrame({
-    "Asset": ["Stocks", "Bonds", "Real Estate", "Cash", "Commodities"],
-    "Allocation (%)": [50, 25, 15, 5, 5],
-})
+        pdf.set_font("Arial", 'B', size=12)
+        pdf.cell(200, 10, txt="Portfolio Profile", ln=True)
+        pdf.set_font("Arial", size=12)
+        pdf.cell(200, 8, txt=f"- Risk Level: {risk_level}", ln=True)
+        pdf.cell(200, 8, txt=f"- Expected Return: {expected_return:.2%}", ln=True)
 
-# Tabs for organizing content
-tab1, tab2, tab3 = st.tabs(["📈 Portfolio Overview", "💡 Suggestions", "📋 Summary Dashboard"])
+        pdf_bytes = pdf.output(dest='S').encode('latin1')
+        pdf_buffer = BytesIO(pdf_bytes)
 
-with tab1:
-    st.subheader("Portfolio Allocation")
-    
-    # Interactive sliders for allocation with total check
-    allocations = []
-    total_allocation = 0
-    cols = st.columns(len(portfolio_df))
-    for i, col in enumerate(cols):
-        alloc = col.slider(
-            f"{portfolio_df.loc[i, 'Asset']} %",
-            min_value=0,
-            max_value=100,
-            value=portfolio_df.loc[i, 'Allocation (%)'],
-            key=f"alloc_{i}"
+        st.download_button(
+            label="⬇️ Download PDF",
+            data=pdf_buffer,
+            file_name=f"Financial_Report_{datetime.now().strftime('%Y%m%d')}.pdf",
+            mime="application/pdf"
         )
-        allocations.append(alloc)
-        total_allocation += alloc
+        st.success("✅ Your PDF report is ready for download!")
 
-    st.markdown(f"**Total Allocation: {total_allocation}%**")
-    if total_allocation != 100:
-        st.error("⚠️ Total allocation must sum to 100%!")
-with st.expander("📊 View Portfolio Breakdown"):
-    st.dataframe(portfolio_df)
+    st.markdown('<hr class="styled-divider">', unsafe_allow_html=True)
 
-    # Show pie chart for allocations
-    if total_allocation == 100:
-        alloc_df = pd.DataFrame({
-            "Asset": portfolio_df["Asset"],
-            "Allocation": allocations
-        })
-        st.pyplot(
-            alloc_df.set_index("Asset").plot.pie(
-                y='Allocation',
-                autopct='%1.1f%%',
-                legend=False,
-                figsize=(5,5)
-            ).figure
-        )
-
-with tab2:
-    st.subheader("Financial Suggestions")
-    # Dummy suggestions based on risk
-    if risk_level == "Conservative":
-        st.info("💡Consider increasing bond allocation and holding more cash.")
-    elif risk_level == "Balanced":
-        st.success("Maintain your diversified portfolio with a mix of stocks and bonds.")
-    else:
-        st.warning("Higher stock allocation might increase volatility but with higher potential returns.")
-
-with tab3:
-    st.subheader("Summary Dashboard")
-    # Dummy KPIs
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Portfolio Value", "$120,000", "+2.3%")
-    col2.metric("Risk Level", risk_level)
-    col3.metric("Projected Annual Return", "7.5%", "+0.2%")
-
-    st.markdown("### Performance Chart")
-    dates = pd.date_range(end=pd.Timestamp.today(), periods=30)
-    values = np.cumsum(np.random.randn(30)) + 100
-    perf_df = pd.DataFrame({"Date": dates, "Value": values})
-    perf_df = perf_df.set_index("Date")
-    st.line_chart(perf_df)
-
-# Handle export button logic
-if export_button:
-    with st.spinner("Preparing export..."):
-        if export_format == "CSV":
-            csv_data = portfolio_df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="⬇️ Download Portfolio CSV",
-                data=csv_data,
-                file_name="portfolio.csv",
-                mime="text/csv"
-            )
-        else:
-            # For PDF export, you could use fpdf or reportlab, simplified here
-            st.warning("PDF export is coming soon!")
-
-    st.success("Export ready! Choose format and download.")
-if export_button:
-    st.success("✅ Portfolio exported successfully!")
-
-import streamlit as st
-import pandas as pd
-import numpy as np
-
-# Load your data (update path as needed)
-@st.cache_data
-def load_data():
-    df = pd.read_csv(r"C:/Users/Admin/Documents/AI Personal Finance Advisor/Data/Economic Data.csv")
-    return df
-
-df = load_data()
-
-# Example portfolio data - replace or update as needed
-portfolio_df = pd.DataFrame({
-    "Asset": ["Stocks", "Bonds", "Real Estate", "Cash", "Commodities"],
-    "Allocation (%)": [50, 25, 15, 5, 5],
-})
-
-# --- UI Layout ---
-st.markdown("""
-<style>
-    body {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-    .stButton>button {
-        background-color: #4CAF50;
-        color: white;
-        border-radius: 8px;
-        padding: 8px 16px;
-        font-weight: bold;
-    }
-    .stButton>button:hover {
-        background-color: #45a049;
-        color: white;
-    }
-    .block-container {
-        padding-top: 1rem;
-        padding-bottom: 2rem;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-import streamlit as st
-
-st.progress(int(total_allocation))  # `total_allocation` should be your current slider sum
-    
-# Export functionality
-if export_button:
-    with st.spinner("Preparing export..."):
-        export_df = portfolio_df.copy()
-        export_df["Allocation (%)"] = allocations  # use updated allocations
-
-        if export_format == "CSV":
-            csv_data = export_df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="⬇️ Download Portfolio CSV",
-                data=csv_data,
-                file_name="portfolio.csv",
-                mime="text/csv"
-            )
-        else:
-            # You can integrate your PDF export logic here
-            st.warning("PDF export is coming soon!")
-
-    st.success("Export ready! Choose format and download.")
-import streamlit as st
-import pandas as pd
-import numpy as np
-import altair as alt
-from datetime import datetime
-
-# --- Load and Clean Data ---
-@st.cache_data
-def load_data():
-    df = pd.read_csv("C:/Users/Admin/Documents/AI Personal Finance Advisor/Data/Economic Data.csv")
-
-    df.dropna(subset=['Date'], inplace=True)
-    return df
-
-econ_df = load_data()
-
-# --- Branding & Styling ---
-
-st.markdown("""
-    <style>
-    body {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-    .stButton>button {
-        background-color: #4CAF50;
-        color: white;
-        border-radius: 8px;
-        padding: 8px 16px;
-        font-weight: bold;
-    }
-    .stButton>button:hover {
-        background-color: #45a049;
-        color: white;
-    }
-    .block-container {
-        padding-top: 1rem;
-        padding-bottom: 2rem;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- Dummy Portfolio Data ---
-assets = ["Stocks", "Bonds", "Real Estate", "Cash", "Commodities"]
-default_alloc = [50, 25, 15, 5, 5]
-
-# --- Export Button ---
-if export_button and total_alloc == 100:
-    export_df = pd.DataFrame({"Asset": assets, "Allocation (%)": allocations})
-    if export_format == "CSV":
-        csv_data = export_df.to_csv(index=False).encode("utf-8")
-        st.download_button("⬇️ Download CSV", data=csv_data, file_name="portfolio.csv", mime="text/csv")
-    else:
-        st.warning("📄 PDF export is under development.")
-with st.sidebar.expander("💬 Feedback / Suggestions"):
-    st.markdown("We'd love to hear your thoughts or suggestions to improve this app.")
-    feedback = st.text_area("Your feedback:")
-    if st.button("📩 Submit Feedback"):
+    st.markdown("""
+    <div class="glass-card">
+        <h3>💬 Share Your Feedback</h3>
+        <p>We'd love to hear your thoughts to improve this advisor.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    feedback = st.text_area("Your feedback:", placeholder="Tell us what you think...")
+    if st.button("📩 Submit Feedback", use_container_width=True):
         if feedback.strip():
             st.success("✅ Thanks for your feedback!")
-            # Optionally, save it to a file or database here.
         else:
             st.warning("⚠️ Feedback is empty. Please enter something.")
 
+# --- FOOTER ---
+st.markdown("""
+<hr class="styled-divider">
+<div style="text-align:center; padding: 1rem; color: #64748b; font-size: 0.85rem;">
+    Built with ❤️ using <strong style="color:#a78bfa;">Streamlit</strong> • AI Personal Finance Advisor
+</div>
+""", unsafe_allow_html=True)
